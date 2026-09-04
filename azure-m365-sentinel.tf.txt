@@ -1,0 +1,57 @@
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.90.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+variable "location" {
+  type        = string
+  default     = "West Europe"
+  description = "Azure region for Sentinel deployment"
+}
+
+variable "resource_group_name" {
+  type        = string
+  default     = "rg-m365-sentinel-prod"
+  description = "Name of the resource group"
+}
+
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group_name
+  location = var.location
+}
+
+resource "azurerm_log_analytics_workspace" "law" {
+  name                = "law-m365-security-logs"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "PerGB2018"
+  retention_in_days   = 90
+}
+
+resource "azurerm_log_analytics_workspace_table" "sentinel_solution" {
+  workspace_id = azurerm_log_analytics_workspace.law.id
+  plan         = "Analytics"
+  table_name   = "SecurityEvent"
+}
+
+resource "azurerm_sentinel_data_connector_office_365" "m365_connector" {
+  name                       = "m365-office-data-connector"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
+  exchange_enabled           = true
+  sharepoint_enabled         = true
+  teams_enabled              = true
+}
+
+output "sentinel_workspace_id" {
+  value       = azurerm_log_analytics_workspace.law.workspace_id
+  description = "The ID of the deployed Log Analytics Workspace running Sentinel"
+}
